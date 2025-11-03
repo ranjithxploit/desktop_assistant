@@ -10,6 +10,7 @@ import psutil
 import logging
 import pyttsx3
 import google.generativeai as genai
+import platform
 
 
 API_KEY = "<gemini_api>"      
@@ -104,6 +105,68 @@ def delete_path(path):
         else:
             return "Path not found."
     return confirm_and_run(f"Delete path: {path}", _delete)
+
+def get_system_info():
+    try:
+        cpu_count = psutil.cpu_count()
+        cpu_percent = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+        boot_time = time.ctime(psutil.boot_time())
+        
+        info = f"""
+╔══════════════════════════════════════════╗
+║          SYSTEM INFORMATION              ║
+╚══════════════════════════════════════════╝
+Platform: {platform.system()} {platform.release()}
+Machine: {platform.machine()}
+Processor: {platform.processor()}
+CPU Cores: {cpu_count}
+CPU Usage: {cpu_percent}%
+RAM Total: {round(memory.total / (1024**3), 2)} GB
+RAM Used: {round(memory.used / (1024**3), 2)} GB ({memory.percent}%)
+RAM Available: {round(memory.available / (1024**3), 2)} GB
+Disk Total: {round(disk.total / (1024**3), 2)} GB
+Disk Used: {round(disk.used / (1024**3), 2)} GB ({disk.percent}%)
+Disk Free: {round(disk.free / (1024**3), 2)} GB
+Boot Time: {boot_time}
+        """
+        logging.info("System info retrieved")
+        return info.strip()
+    except Exception as e:
+        logging.exception("Failed to get system info")
+        return f"Error retrieving system info: {e}"
+
+def get_health_status():
+    try:
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+        cpu_percent = psutil.cpu_percent(interval=1)
+        
+        status = "🟢 HEALTHY"
+        alerts = []
+        
+        if cpu_percent > 80:
+            alerts.append(f"⚠️ High CPU usage: {cpu_percent}%")
+            status = "🟡 WARNING"
+        if memory.percent > 85:
+            alerts.append(f"⚠️ High memory usage: {memory.percent}%")
+            status = "🟡 WARNING"
+        if disk.percent > 90:
+            alerts.append(f"⚠️ Low disk space: {disk.percent}% used")
+            status = "🔴 CRITICAL"
+        
+        health_report = f"System Health Status: {status}\n"
+        if alerts:
+            health_report += "\nAlerts:\n" + "\n".join(alerts)
+        else:
+            health_report += "All systems operating normally"
+        
+        logging.info("Health status checked")
+        return health_report
+    except Exception as e:
+        logging.exception("Failed to get health status")
+        return f"Error retrieving health status: {e}"
 class AssistantApp:
     def __init__(self, root):
         self.root = root
@@ -125,6 +188,8 @@ class AssistantApp:
         tk.Button(actions, text="List Processes", command=self.gui_list_processes).pack(side='left')
         tk.Button(actions, text="Run Command", command=self.gui_run_command).pack(side='left')
         tk.Button(actions, text="Delete Path", command=self.gui_delete_path).pack(side='left')
+        tk.Button(actions, text="Sys Info", command=self.gui_system_info).pack(side='left')
+        tk.Button(actions, text="Health", command=self.gui_health_status).pack(side='left')
         tk.Button(actions, text="Speak", command=lambda: speak("Assistant online. Ready to help.")).pack(side='right')
 
         self.log("Assistant started. Type your prompt and press Enter.")
@@ -164,6 +229,14 @@ class AssistantApp:
             resp = delete_path(path)
             self.log(resp)
             return
+        if lower.startswith("system info") or lower.startswith("sysinfo"):
+            resp = get_system_info()
+            self.log(resp)
+            return
+        if lower.startswith("health") or lower.startswith("status"):
+            resp = get_health_status()
+            self.log(resp)
+            return
         self.log("Thinking...", role="assistant")
         llm_reply = call_llm(prompt)
         logging.info(f"LLM reply: {llm_reply[:200]}")
@@ -200,6 +273,16 @@ class AssistantApp:
             self.log(f"Deleting: {path}")
             resp = delete_path(path)
             self.log(resp)
+
+    def gui_system_info(self):
+        self.log("Fetching system information...")
+        resp = get_system_info()
+        self.log(resp)
+
+    def gui_health_status(self):
+        self.log("Checking system health...")
+        resp = get_health_status()
+        self.log(resp)
 
 def main():
     root = tk.Tk()
