@@ -13,6 +13,8 @@ import google.generativeai as genai
 import platform
 from pathlib import Path
 import pyperclip
+from PIL import ImageGrab
+from datetime import datetime
 
 
 API_KEY = "<gemini_api>"      
@@ -233,6 +235,37 @@ def clear_clipboard():
     except Exception as e:
         logging.exception("Failed to clear clipboard")
         return f"Clipboard error: {e}"
+
+def take_screenshot(save_path=None):
+    try:
+        if save_path is None:
+            screenshot_dir = os.path.join(os.path.expanduser("~"), "Screenshots")
+            os.makedirs(screenshot_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            save_path = os.path.join(screenshot_dir, f"screenshot_{timestamp}.png")
+        
+        screenshot = ImageGrab.grab()
+        screenshot.save(save_path)
+        logging.info(f"Screenshot saved: {save_path}")
+        return f"Screenshot saved: {save_path}"
+    except Exception as e:
+        logging.exception("Screenshot failed")
+        return f"Screenshot error: {e}"
+
+def take_screenshot_region():
+    try:
+        screenshot_dir = os.path.join(os.path.expanduser("~"), "Screenshots")
+        os.makedirs(screenshot_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        save_path = os.path.join(screenshot_dir, f"screenshot_region_{timestamp}.png")
+        
+        screenshot = ImageGrab.grab(bbox=(0, 0, 1024, 768))
+        screenshot.save(save_path)
+        logging.info(f"Region screenshot saved: {save_path}")
+        return f"Region screenshot saved: {save_path}"
+    except Exception as e:
+        logging.exception("Region screenshot failed")
+        return f"Screenshot error: {e}"
 class AssistantApp:
     def __init__(self, root):
         self.root = root
@@ -260,6 +293,7 @@ class AssistantApp:
         tk.Button(actions, text="Clipboard", command=self.gui_get_clipboard).pack(side='left')
         tk.Button(actions, text="Copy", command=self.gui_copy_clipboard).pack(side='left')
         tk.Button(actions, text="Clear Clip", command=self.gui_clear_clipboard).pack(side='left')
+        tk.Button(actions, text="Screenshot", command=self.gui_screenshot).pack(side='left')
         tk.Button(actions, text="Speak", command=lambda: speak("Assistant online. Ready to help.")).pack(side='right')
 
         self.log("Assistant started. Type your prompt and press Enter.")
@@ -324,6 +358,14 @@ class AssistantApp:
             return
         if lower.startswith("clear clip"):
             resp = clear_clipboard()
+            self.log(resp)
+            return
+        if lower.startswith("screenshot") or lower.startswith("screen shot") or lower.startswith("snap"):
+            resp = take_screenshot()
+            self.log(resp)
+            return
+        if lower.startswith("screenshot region") or lower.startswith("screenshot area"):
+            resp = take_screenshot_region()
             self.log(resp)
             return
         self.log("Thinking...", role="assistant")
@@ -394,6 +436,15 @@ class AssistantApp:
     def gui_clear_clipboard(self):
         if messagebox.askyesno("Clear Clipboard", "Clear clipboard content?"):
             resp = clear_clipboard()
+            self.log(resp)
+
+    def gui_screenshot(self):
+        choice = messagebox.askyesnocancel("Screenshot", "Capture full screen?\n\nYes = Full Screen\nNo = Region")
+        if choice is True:
+            resp = take_screenshot()
+            self.log(resp)
+        elif choice is False:
+            resp = take_screenshot_region()
             self.log(resp)
 
 def main():
