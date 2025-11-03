@@ -1,0 +1,3 @@
+2025-11-03 23:09:28,061 - INFO - Imported existing <module 'comtypes.gen' from 'D:\\projects\\desktop_assistant\\venv\\Lib\\site-packages\\comtypes\\gen\\__init__.py'>
+2025-11-03 23:09:28,061 - INFO - Using writeable comtypes cache directory: 'D:\projects\desktop_assistant\venv\Lib\site-packages\comtypes\gen'
+2025-11-03 23:09:28,606 - INFO - Theme changed to: dark

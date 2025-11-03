@@ -23,6 +23,12 @@ LOGFILE = "assistant_actions.log"
 MAX_RETRIES = 3
 RETRY_DELAY = 2
 
+ALERT_THRESHOLDS = {
+    "cpu": 80,
+    "memory": 85,
+    "disk": 90
+}
+
 THEME_CONFIG = {
     "dark": {
         "bg": "#1e1e1e",
@@ -347,6 +353,46 @@ def list_chat_histories():
         logging.exception("Failed to list chat histories")
         return f"Error listing chat histories: {e}"
 
+def check_resource_alerts():
+    try:
+        alerts = []
+        cpu_percent = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+        
+        if cpu_percent > ALERT_THRESHOLDS["cpu"]:
+            alerts.append(f"🔴 CPU ALERT: {cpu_percent}% (Threshold: {ALERT_THRESHOLDS['cpu']}%)")
+        
+        if memory.percent > ALERT_THRESHOLDS["memory"]:
+            alerts.append(f"🔴 MEMORY ALERT: {memory.percent}% (Threshold: {ALERT_THRESHOLDS['memory']}%)")
+        
+        if disk.percent > ALERT_THRESHOLDS["disk"]:
+            alerts.append(f"🔴 DISK ALERT: {disk.percent}% (Threshold: {ALERT_THRESHOLDS['disk']}%)")
+        
+        if alerts:
+            alert_message = "⚠️ SYSTEM ALERTS:\n" + "\n".join(alerts)
+            logging.warning(f"Resource alerts triggered: {alerts}")
+            return alert_message
+        else:
+            return "✅ All system resources are within normal limits"
+    except Exception as e:
+        logging.exception("Failed to check resource alerts")
+        return f"Alert check error: {e}"
+
+def set_alert_threshold(resource, threshold):
+    try:
+        if resource.lower() in ALERT_THRESHOLDS:
+            ALERT_THRESHOLDS[resource.lower()] = int(threshold)
+            logging.info(f"Alert threshold updated: {resource}={threshold}")
+            return f"Alert threshold updated: {resource}={threshold}%"
+        else:
+            return f"Unknown resource: {resource}. Available: cpu, memory, disk"
+    except ValueError:
+        return "Invalid threshold value. Must be a number between 0-100"
+    except Exception as e:
+        logging.exception("Failed to set alert threshold")
+        return f"Error setting threshold: {e}"
+
 class AssistantApp:
     def __init__(self, root):
         self.root = root
@@ -382,6 +428,7 @@ class AssistantApp:
         tk.Button(actions, text="Save Chat", command=self.gui_save_chat).pack(side='left')
         tk.Button(actions, text="Load Chat", command=self.gui_load_chat).pack(side='left')
         tk.Button(actions, text="Chat List", command=self.gui_list_chats).pack(side='left')
+        tk.Button(actions, text="🚨 Alerts", command=self.gui_check_alerts).pack(side='left')
         tk.Button(actions, text="Speak", command=lambda: speak("Assistant online. Ready to help.")).pack(side='right')
 
         self.apply_theme("dark")
@@ -506,6 +553,23 @@ class AssistantApp:
             resp = list_chat_histories()
             self.log(resp)
             return
+        if lower.startswith("alert") or lower.startswith("check alert"):
+            resp = check_resource_alerts()
+            self.log(resp)
+            return
+        if lower.startswith("set alert") or lower.startswith("threshold"):
+            parts = prompt.split()
+            if len(parts) >= 3:
+                resource = parts[2]
+                try:
+                    threshold = int(parts[3])
+                    resp = set_alert_threshold(resource, threshold)
+                    self.log(resp)
+                except (ValueError, IndexError):
+                    self.log("Usage: set alert [resource] [threshold]\nResources: cpu, memory, disk")
+            else:
+                self.log("Usage: set alert [resource] [threshold]\nResources: cpu, memory, disk")
+            return
         self.log("Thinking...", role="assistant")
         llm_reply = call_llm(prompt)
         logging.info(f"LLM reply: {llm_reply[:200]}")
@@ -599,6 +663,11 @@ class AssistantApp:
     def gui_list_chats(self):
         self.log("Loading chat history list...")
         resp = list_chat_histories()
+        self.log(resp)
+
+    def gui_check_alerts(self):
+        self.log("Checking system resource alerts...")
+        resp = check_resource_alerts()
         self.log(resp)
 
 def main():
