@@ -23,6 +23,29 @@ LOGFILE = "assistant_actions.log"
 MAX_RETRIES = 3
 RETRY_DELAY = 2
 
+THEME_CONFIG = {
+    "dark": {
+        "bg": "#1e1e1e",
+        "fg": "#ffffff",
+        "chat_bg": "#2d2d2d",
+        "chat_fg": "#ffffff",
+        "button_bg": "#404040",
+        "button_fg": "#ffffff",
+        "entry_bg": "#3d3d3d",
+        "entry_fg": "#ffffff"
+    },
+    "light": {
+        "bg": "#f0f0f0",
+        "fg": "#000000",
+        "chat_bg": "#ffffff",
+        "chat_fg": "#000000",
+        "button_bg": "#e0e0e0",
+        "button_fg": "#000000",
+        "entry_bg": "#ffffff",
+        "entry_fg": "#000000"
+    }
+}
+
 genai.configure(api_key=API_KEY)
 
 
@@ -266,11 +289,18 @@ def take_screenshot_region():
     except Exception as e:
         logging.exception("Region screenshot failed")
         return f"Screenshot error: {e}"
+
+def toggle_theme(app_instance, current_theme):
+    new_theme = "light" if current_theme == "dark" else "dark"
+    app_instance.apply_theme(new_theme)
+    return f"Theme switched to {new_theme}"
 class AssistantApp:
     def __init__(self, root):
         self.root = root
+        self.current_theme = "dark"
         root.title("AI Desktop Assistant")
-        root.geometry("800x600")
+        root.geometry("900x650")
+        
         self.chat = scrolledtext.ScrolledText(root, state='disabled', wrap='word', height=22)
         self.chat.pack(fill='both', padx=8, pady=8, expand=True)
         frame = tk.Frame(root)
@@ -294,8 +324,10 @@ class AssistantApp:
         tk.Button(actions, text="Copy", command=self.gui_copy_clipboard).pack(side='left')
         tk.Button(actions, text="Clear Clip", command=self.gui_clear_clipboard).pack(side='left')
         tk.Button(actions, text="Screenshot", command=self.gui_screenshot).pack(side='left')
+        tk.Button(actions, text="🌓 Theme", command=self.toggle_app_theme).pack(side='left')
         tk.Button(actions, text="Speak", command=lambda: speak("Assistant online. Ready to help.")).pack(side='right')
 
+        self.apply_theme("dark")
         self.log("Assistant started. Type your prompt and press Enter.")
 
     def log(self, text, role="assistant"):
@@ -303,6 +335,34 @@ class AssistantApp:
         self.chat.insert('end', f"{role}: {text}\n\n")
         self.chat.configure(state='disabled')
         self.chat.see('end')
+
+    def apply_theme(self, theme_name):
+        self.current_theme = theme_name
+        theme = THEME_CONFIG[theme_name]
+        
+        self.root.configure(bg=theme["bg"])
+        self.chat.configure(bg=theme["chat_bg"], fg=theme["chat_fg"], insertbackground=theme["chat_fg"])
+        self.entry.configure(bg=theme["entry_bg"], fg=theme["entry_fg"], insertbackground=theme["entry_fg"])
+        
+        for widget in self.root.winfo_children():
+            self.apply_theme_recursive(widget, theme)
+        
+        logging.info(f"Theme changed to: {theme_name}")
+
+    def apply_theme_recursive(self, widget, theme):
+        if isinstance(widget, tk.Button):
+            widget.configure(bg=theme["button_bg"], fg=theme["button_fg"], activebackground=theme["button_bg"])
+        elif isinstance(widget, tk.Frame):
+            widget.configure(bg=theme["bg"])
+            for child in widget.winfo_children():
+                self.apply_theme_recursive(child, theme)
+        elif isinstance(widget, tk.Label):
+            widget.configure(bg=theme["bg"], fg=theme["fg"])
+
+    def toggle_app_theme(self):
+        new_theme = "light" if self.current_theme == "dark" else "dark"
+        self.apply_theme(new_theme)
+        self.log(f"Theme switched to {new_theme.upper()}")
 
     def on_send(self):
         prompt = self.entry.get().strip()
@@ -367,6 +427,9 @@ class AssistantApp:
         if lower.startswith("screenshot region") or lower.startswith("screenshot area"):
             resp = take_screenshot_region()
             self.log(resp)
+            return
+        if lower.startswith("theme") or lower.startswith("toggle theme") or lower.startswith("dark") or lower.startswith("light"):
+            self.toggle_app_theme()
             return
         self.log("Thinking...", role="assistant")
         llm_reply = call_llm(prompt)
