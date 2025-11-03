@@ -1,0 +1,6 @@
+google-generativeai
+psutil
+pyinstaller
+pywin32
+pyttsx3
+pyautogui

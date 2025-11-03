@@ -1,0 +1,4 @@
+pyinstaller --noconfirm --onefile --windowed app.py
+
+
+get inside /build/app.exe
