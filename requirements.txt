@@ -4,3 +4,4 @@ pyinstaller
 pywin32
 pyttsx3
 pyautogui
+pyperclip

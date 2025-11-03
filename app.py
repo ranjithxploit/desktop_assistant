@@ -12,6 +12,7 @@ import pyttsx3
 import google.generativeai as genai
 import platform
 from pathlib import Path
+import pyperclip
 
 
 API_KEY = "<gemini_api>"      
@@ -199,6 +200,39 @@ def search_files(filename, search_path=None, max_results=20):
     except Exception as e:
         logging.exception("File search failed")
         return f"Search error: {e}"
+
+def get_clipboard():
+    try:
+        text = pyperclip.paste()
+        if text:
+            result = f"Clipboard content:\n{text[:500]}"
+            if len(text) > 500:
+                result += f"\n...(truncated, total {len(text)} chars)"
+        else:
+            result = "Clipboard is empty"
+        logging.info("Clipboard read")
+        return result
+    except Exception as e:
+        logging.exception("Failed to read clipboard")
+        return f"Clipboard error: {e}"
+
+def set_clipboard(text):
+    try:
+        pyperclip.copy(text)
+        logging.info(f"Copied to clipboard: {text[:100]}")
+        return f"Copied to clipboard: {text[:100]}"
+    except Exception as e:
+        logging.exception("Failed to set clipboard")
+        return f"Clipboard error: {e}"
+
+def clear_clipboard():
+    try:
+        pyperclip.copy("")
+        logging.info("Clipboard cleared")
+        return "Clipboard cleared"
+    except Exception as e:
+        logging.exception("Failed to clear clipboard")
+        return f"Clipboard error: {e}"
 class AssistantApp:
     def __init__(self, root):
         self.root = root
@@ -223,6 +257,9 @@ class AssistantApp:
         tk.Button(actions, text="Sys Info", command=self.gui_system_info).pack(side='left')
         tk.Button(actions, text="Health", command=self.gui_health_status).pack(side='left')
         tk.Button(actions, text="Search Files", command=self.gui_search_files).pack(side='left')
+        tk.Button(actions, text="Clipboard", command=self.gui_get_clipboard).pack(side='left')
+        tk.Button(actions, text="Copy", command=self.gui_copy_clipboard).pack(side='left')
+        tk.Button(actions, text="Clear Clip", command=self.gui_clear_clipboard).pack(side='left')
         tk.Button(actions, text="Speak", command=lambda: speak("Assistant online. Ready to help.")).pack(side='right')
 
         self.log("Assistant started. Type your prompt and press Enter.")
@@ -274,6 +311,19 @@ class AssistantApp:
             query = prompt.split(" ", 1)[1].strip()
             self.log(f"Searching for files matching: {query}...")
             resp = search_files(query)
+            self.log(resp)
+            return
+        if lower.startswith("clipboard") or lower.startswith("get clip"):
+            resp = get_clipboard()
+            self.log(resp)
+            return
+        if lower.startswith("copy "):
+            text = prompt[5:].strip()
+            resp = set_clipboard(text)
+            self.log(resp)
+            return
+        if lower.startswith("clear clip"):
+            resp = clear_clipboard()
             self.log(resp)
             return
         self.log("Thinking...", role="assistant")
@@ -328,6 +378,22 @@ class AssistantApp:
         if filename:
             self.log(f"Searching for: {filename}...")
             resp = search_files(filename)
+            self.log(resp)
+
+    def gui_get_clipboard(self):
+        self.log("Reading clipboard...")
+        resp = get_clipboard()
+        self.log(resp)
+
+    def gui_copy_clipboard(self):
+        text = tk.simpledialog.askstring("Copy to Clipboard", "Enter text to copy:")
+        if text:
+            resp = set_clipboard(text)
+            self.log(resp)
+
+    def gui_clear_clipboard(self):
+        if messagebox.askyesno("Clear Clipboard", "Clear clipboard content?"):
+            resp = clear_clipboard()
             self.log(resp)
 
 def main():
