@@ -294,10 +294,64 @@ def toggle_theme(app_instance, current_theme):
     new_theme = "light" if current_theme == "dark" else "dark"
     app_instance.apply_theme(new_theme)
     return f"Theme switched to {new_theme}"
+
+def save_chat_history(chat_content, filename=None):
+    try:
+        history_dir = os.path.join(os.path.expanduser("~"), "ChatHistory")
+        os.makedirs(history_dir, exist_ok=True)
+        
+        if filename is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"chat_history_{timestamp}.txt"
+        
+        filepath = os.path.join(history_dir, filename)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(chat_content)
+        logging.info(f"Chat history saved: {filepath}")
+        return f"Chat history saved: {filepath}"
+    except Exception as e:
+        logging.exception("Failed to save chat history")
+        return f"Error saving chat history: {e}"
+
+def load_chat_history(filename):
+    try:
+        history_dir = os.path.join(os.path.expanduser("~"), "ChatHistory")
+        filepath = os.path.join(history_dir, filename)
+        
+        if not os.path.exists(filepath):
+            return f"File not found: {filepath}"
+        
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        logging.info(f"Chat history loaded: {filepath}")
+        return content
+    except Exception as e:
+        logging.exception("Failed to load chat history")
+        return f"Error loading chat history: {e}"
+
+def list_chat_histories():
+    try:
+        history_dir = os.path.join(os.path.expanduser("~"), "ChatHistory")
+        if not os.path.exists(history_dir):
+            return "No chat history found"
+        
+        files = os.listdir(history_dir)
+        if not files:
+            return "No chat history files"
+        
+        history_list = "\n".join([f"{i+1}. {f}" for i, f in enumerate(sorted(files)[:20])])
+        logging.info("Chat histories listed")
+        return f"Available chat histories:\n{history_list}"
+    except Exception as e:
+        logging.exception("Failed to list chat histories")
+        return f"Error listing chat histories: {e}"
+
 class AssistantApp:
     def __init__(self, root):
         self.root = root
         self.current_theme = "dark"
+        self.chat_history = []
         root.title("AI Desktop Assistant")
         root.geometry("900x650")
         
@@ -325,6 +379,9 @@ class AssistantApp:
         tk.Button(actions, text="Clear Clip", command=self.gui_clear_clipboard).pack(side='left')
         tk.Button(actions, text="Screenshot", command=self.gui_screenshot).pack(side='left')
         tk.Button(actions, text="🌓 Theme", command=self.toggle_app_theme).pack(side='left')
+        tk.Button(actions, text="Save Chat", command=self.gui_save_chat).pack(side='left')
+        tk.Button(actions, text="Load Chat", command=self.gui_load_chat).pack(side='left')
+        tk.Button(actions, text="Chat List", command=self.gui_list_chats).pack(side='left')
         tk.Button(actions, text="Speak", command=lambda: speak("Assistant online. Ready to help.")).pack(side='right')
 
         self.apply_theme("dark")
@@ -335,6 +392,7 @@ class AssistantApp:
         self.chat.insert('end', f"{role}: {text}\n\n")
         self.chat.configure(state='disabled')
         self.chat.see('end')
+        self.chat_history.append(f"{role}: {text}")
 
     def apply_theme(self, theme_name):
         self.current_theme = theme_name
@@ -431,6 +489,23 @@ class AssistantApp:
         if lower.startswith("theme") or lower.startswith("toggle theme") or lower.startswith("dark") or lower.startswith("light"):
             self.toggle_app_theme()
             return
+        if lower.startswith("save chat") or lower.startswith("save history"):
+            content = "\n".join(self.chat_history)
+            resp = save_chat_history(content)
+            self.log(resp)
+            return
+        if lower.startswith("load chat") or lower.startswith("load history"):
+            filename = prompt.split(" ", 2)[2].strip() if len(prompt.split(" ")) > 2 else None
+            if filename:
+                content = load_chat_history(filename)
+                self.log(content)
+            else:
+                self.log("Please specify filename: load chat [filename]")
+            return
+        if lower.startswith("chat list") or lower.startswith("list chats"):
+            resp = list_chat_histories()
+            self.log(resp)
+            return
         self.log("Thinking...", role="assistant")
         llm_reply = call_llm(prompt)
         logging.info(f"LLM reply: {llm_reply[:200]}")
@@ -509,6 +584,22 @@ class AssistantApp:
         elif choice is False:
             resp = take_screenshot_region()
             self.log(resp)
+
+    def gui_save_chat(self):
+        content = "\n".join(self.chat_history)
+        resp = save_chat_history(content)
+        self.log(resp)
+
+    def gui_load_chat(self):
+        filename = tk.simpledialog.askstring("Load Chat", "Enter filename to load:")
+        if filename:
+            content = load_chat_history(filename)
+            self.log(content)
+
+    def gui_list_chats(self):
+        self.log("Loading chat history list...")
+        resp = list_chat_histories()
+        self.log(resp)
 
 def main():
     root = tk.Tk()
