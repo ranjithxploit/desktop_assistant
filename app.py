@@ -32,14 +32,28 @@ def speak(text):
     except Exception:
         pass
 def call_llm(prompt):
-    try:
-        model = genai.GenerativeModel(MODEL)
-        response = model.generate_content(prompt)
-        text = response.text if response.text else "[No response from Gemini]"
-        return text
-    except Exception as e:
-        logging.exception("LLM call failed")
-        return f"[LLM error] {str(e)}"
+    for attempt in range(MAX_RETRIES):
+        try:
+            model = genai.GenerativeModel(MODEL)
+            response = model.generate_content(prompt)
+            text = response.text if response.text else "[No response from Gemini]"
+            return text
+        except Exception as e:
+            error_msg = str(e)
+            if "429" in error_msg or "Resource exhausted" in error_msg:
+                if attempt < MAX_RETRIES - 1:
+                    wait_time = RETRY_DELAY * (2 ** attempt)
+                    logging.warning(f"Rate limited. Retrying in {wait_time}s... (Attempt {attempt + 1}/{MAX_RETRIES})")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    logging.error("Max retries reached for rate limiting")
+                    return "[LLM error] API rate limit exceeded. Please try again in a moment."
+            else:
+                logging.exception("LLM call failed")
+                return f"[LLM error] {error_msg}"
+    
+    return "[LLM error] Failed to get response from Gemini API"
 def confirm_and_run(action_desc, fn, *args, **kwargs):
     if not messagebox.askyesno("Confirm action", f"Allow this action?\n\n{action_desc}"):
         logging.info(f"User denied action: {action_desc}")
