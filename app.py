@@ -11,6 +11,7 @@ import logging
 import pyttsx3
 import google.generativeai as genai
 import platform
+from pathlib import Path
 
 
 API_KEY = "<gemini_api>"      
@@ -167,6 +168,37 @@ def get_health_status():
     except Exception as e:
         logging.exception("Failed to get health status")
         return f"Error retrieving health status: {e}"
+
+def search_files(filename, search_path=None, max_results=20):
+    try:
+        if search_path is None:
+            search_path = os.path.expanduser("~")
+        
+        results = []
+        search_path = Path(search_path)
+        
+        for path in search_path.rglob(f"*{filename}*"):
+            if len(results) >= max_results:
+                break
+            try:
+                if path.is_file():
+                    size = path.stat().st_size / (1024**2)
+                    results.append(f"{path} ({size:.2f} MB)")
+                elif path.is_dir():
+                    results.append(f"{path}/ [FOLDER]")
+            except (PermissionError, OSError):
+                pass
+        
+        if results:
+            search_result = f"Found {len(results)} matches for '{filename}':\n\n" + "\n".join(results)
+        else:
+            search_result = f"No files found matching '{filename}'"
+        
+        logging.info(f"File search completed for: {filename}")
+        return search_result
+    except Exception as e:
+        logging.exception("File search failed")
+        return f"Search error: {e}"
 class AssistantApp:
     def __init__(self, root):
         self.root = root
@@ -190,6 +222,7 @@ class AssistantApp:
         tk.Button(actions, text="Delete Path", command=self.gui_delete_path).pack(side='left')
         tk.Button(actions, text="Sys Info", command=self.gui_system_info).pack(side='left')
         tk.Button(actions, text="Health", command=self.gui_health_status).pack(side='left')
+        tk.Button(actions, text="Search Files", command=self.gui_search_files).pack(side='left')
         tk.Button(actions, text="Speak", command=lambda: speak("Assistant online. Ready to help.")).pack(side='right')
 
         self.log("Assistant started. Type your prompt and press Enter.")
@@ -235,6 +268,12 @@ class AssistantApp:
             return
         if lower.startswith("health") or lower.startswith("status"):
             resp = get_health_status()
+            self.log(resp)
+            return
+        if lower.startswith("search ") or lower.startswith("find "):
+            query = prompt.split(" ", 1)[1].strip()
+            self.log(f"Searching for files matching: {query}...")
+            resp = search_files(query)
             self.log(resp)
             return
         self.log("Thinking...", role="assistant")
@@ -283,6 +322,13 @@ class AssistantApp:
         self.log("Checking system health...")
         resp = get_health_status()
         self.log(resp)
+
+    def gui_search_files(self):
+        filename = tk.simpledialog.askstring("Search Files", "Enter filename or pattern to search:")
+        if filename:
+            self.log(f"Searching for: {filename}...")
+            resp = search_files(filename)
+            self.log(resp)
 
 def main():
     root = tk.Tk()
